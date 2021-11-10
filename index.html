@@ -1,0 +1,188 @@
+<meta charset="utf-8" />
+
+<style>
+	html, body{
+		display: flex;
+		justify-content: center;
+		margin: 0;
+		padding: 0;
+		background: gray;
+		height: 100%;
+	}
+</style>
+
+<script src="./earth.js"></script>
+<script src="./spaceship.js"></script>
+<script src="./laser.js"></script>
+<script src="./asteroid.js"></script>
+<script>
+	const ASTEROID_POINTS = 10;
+	const START_ASTEROID_TIME = 100;
+	const MAX_ASTEROID_SPEED = 10;
+	const MIN_ASTEROID_TIME = 20;
+
+	let canvas;
+	let starBuffer = document.createElement("canvas");
+	let earth;
+	let spaceship;
+	let lasers = [];
+	let asteroids = [];
+	let asteroidTimer = 0;
+	let asteroidTimerAmt = START_ASTEROID_TIME;
+	let asteroidSpeed = 2;
+	let score = 0;
+	
+	window.onload = () => {
+		canvas = document.getElementById("canvas");
+		canvas.width = 500;
+		canvas.height = document.body.offsetHeight;
+
+		drawStarBg();
+
+		asteroidSpeed = canvas.height / 300;
+
+		earth = new Earth();
+		earth.sprite = document.getElementById("earth");
+		earth.x = canvas.width / 2;
+		earth.y = canvas.height + (earth.sprite.height * 0.75);
+		
+		spaceship = new Spaceship();
+		spaceship.sprite = document.getElementById("spaceship") 
+		spaceship.y = canvas.height - 220;
+
+		canvas.addEventListener("mousemove", spaceship.mouseMove.bind(spaceship));
+		document.addEventListener("click", ()=>{
+			if (spaceship.canShoot()){
+				lasers.push(new Laser(spaceship.x, spaceship.y - 100));
+				spaceship.shoot();
+			}
+		});
+
+		//initiate timers to spawn astroids and an increasing rate
+		setInterval(()=>{
+			asteroidTimerAmt = Math.max(asteroidTimerAmt - 3, MIN_ASTEROID_TIME);
+			asteroidSpeed = Math.min(asteroidSpeed + 0.1, MAX_ASTEROID_SPEED);
+		}, 5000);
+		setInterval(()=>{
+			asteroidTimer--;
+		}, 10);
+		
+		update();
+	}
+	
+	function update(){
+		let ctx = canvas.getContext("2d");
+		
+		//draw bg
+		ctx.drawImage(starBuffer, 0, 0);
+
+		if (earth.health > 0){
+			earth.draw(ctx);
+			spaceship.draw(ctx);
+			drawAsteroids();
+			
+			//draw lasers
+			for (let i = 0; i < lasers.length; i++){
+				lasers[i].draw(ctx);
+			}
+
+			//draw score
+			ctx.font = '30px Arial';
+			ctx.fillStyle = '#00FF00';
+			ctx.fillText("Score: " + score, 10, 30);
+			ctx.fillStyle = '#FF0000';
+			ctx.fillText("Health: " + earth.health, 10, 60);
+			
+			//remove hit objs
+			asteroids = asteroids.filter(a=>a.y < canvas.height + a.getDimensions()[1]);
+			lasers = lasers.filter((l)=>{
+				return true
+			});
+		}
+		else{
+			ctx.font = '50px Arial';
+			ctx.fillStyle = 'white';
+			ctx.textAlign = 'center';
+			ctx.fillText("Game Over", canvas.width / 2, canvas.height / 2);
+			ctx.fillStyle = '#00FF00';
+			ctx.fillText("Your Score: " + score,  canvas.width / 2, (canvas.height) / 2 + 50);
+		}
+		
+		window.requestAnimationFrame(()=>{update()});
+	}
+
+	function drawStarBg(){
+		let ctx = canvas.getContext('2d');
+
+		starBuffer.width = canvas.width;
+		starBuffer.height = canvas.height;
+		stCtx = starBuffer.getContext('2d');
+		stCtx.fillStyle = 'black';
+		stCtx.fillRect(0, 0, starBuffer.width, starBuffer.height);
+
+		for (let i = 0; i < 1000; i++){
+			let x = Math.random() * starBuffer.width;
+			let y = Math.random() * starBuffer.height;
+			let width = Math.random() * 2;
+
+			stCtx.fillStyle = '#888888';
+			stCtx.fillRect(x, y, width, width);
+		}
+	}
+
+	function drawAsteroids(){
+		let ctx = canvas.getContext('2d');
+
+		if (asteroidTimer <= 0){
+			let newSprite = document.getElementById("asteroid");
+			let newAsteroid = new Asteroid(Math.random() * canvas.width, -100, asteroidSpeed);
+			newAsteroid.sprite = newSprite;
+			asteroids.push(newAsteroid);
+			asteroidTimer = asteroidTimerAmt;
+		}
+		
+		//draw and update asteroids
+		for (let i = 0; i < asteroids.length; i++){
+			asteroids[i].draw(ctx);
+			
+			//check laser collisions
+			for (let l = 0; l < lasers.length; l++){
+				let distance = getDistance(
+					asteroids[i].x,
+					asteroids[i].y,
+					lasers[l].x,
+					lasers[l].y
+				);
+
+				if (
+					!asteroids[i].isHit &&
+					!lasers[l].isHit &&
+					(distance + 40) < asteroids[i].getDimensions()[0]
+				){
+					asteroids[i].hit();
+					lasers[l].isHit = true;
+					score += ASTEROID_POINTS;
+				}
+			}
+
+			//check earth collision
+			if (!asteroids[i].isHit && asteroids[i].y > spaceship.y){
+				asteroids[i].hit();
+				earth.hit();
+			}
+		}
+	}
+
+	function getDistance(x1, y1, x2, y2){
+		return Math.sqrt(Math.pow(x1 - x2, 2) + Math.pow(y1 - y2, 2));
+	}
+</script>
+
+<body>
+	<canvas id="canvas">
+		//error
+	</canvas>
+	<img id="spaceship" src="./sprites/spaceship.png" hidden/>
+	<img id="asteroid" src="./sprites/asteroid.png" hidden/>
+	<img id="earth" src="./sprites/earth.svg" hidden/>
+</body>
